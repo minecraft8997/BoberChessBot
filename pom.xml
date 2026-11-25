@@ -2,11 +2,9 @@
 <project>
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.github.tors42</groupId>
-    <artifactId>charibot</artifactId>
+    <groupId>com.deewend</groupId>
+    <artifactId>bober-chess-bot</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-
-    <packaging>jlink</packaging>
 
     <dependencies>
         <dependency>
@@ -25,26 +23,38 @@
 
     <build>
         <plugins>
+            <!-- thanks https://www.baeldung.com/executable-jar-with-maven -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jlink-plugin</artifactId>
-                <version>3.3.0</version>
-                <extensions>true</extensions>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>
+                                ${project.build.directory}/libs
+                            </outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
                 <configuration>
-                    <sourceJdkModules>${source.jdk}</sourceJdkModules>
-                    <classifier>${os.arch.classifier}</classifier>
-                    <launcher>bot=charibot/bot.Bot</launcher>
-                    <addOptions>
-                        <addOption>--enable-preview</addOption>
-                    </addOptions>
-                    <addModules>
-                        <addModule>jdk.jfr</addModule>
-                        <addModule>jdk.jcmd</addModule>
-                    </addModules>
-                    <compress>zip-9</compress>
-                    <noHeaderFiles>true</noHeaderFiles>
-                    <noManPages>true</noManPages>
-                    <!--<stripDebug>true</stripDebug>-->
+                    <archive>
+                        <manifest>
+                            <addClasspath>true</addClasspath>
+                            <classpathPrefix>libs/</classpathPrefix>
+                            <mainClass>
+                                bot.Bot
+                            </mainClass>
+                        </manifest>
+                    </archive>
                 </configuration>
             </plugin>
             <plugin>

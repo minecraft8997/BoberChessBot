@@ -111,9 +111,9 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
         String greeting = event.isRematch()
             ? "Again!"
             : """
-            Hi %s!
+            Hi!
             I wish you a good game!
-            """.formatted(opponent);
+            """;
         clientAndAccount.client().bot().chat(event.id(), greeting);
     }
 
@@ -135,6 +135,8 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                 color == game.color() ? account.name() : game.opponent().name();
 
             Consumer<String> processMoves = moves -> {
+                System.out.println(moves);
+                System.out.println("Thinking");
                 Board board = initialBoard.play(moves);
 
                 if (game.color() == Enums.Color.white
