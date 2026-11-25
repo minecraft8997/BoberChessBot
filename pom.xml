@@ -17,7 +17,7 @@
     </dependencies>
 
     <properties>
-        <maven.compiler.release>26</maven.compiler.release>
+        <maven.compiler.release>25</maven.compiler.release>
 
         <source.jdk>${env.JAVA_HOME}</source.jdk>
         <os.arch.classifier>local</os.arch.classifier>

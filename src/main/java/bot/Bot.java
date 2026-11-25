@@ -7,7 +7,13 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
 
     static final Logger LOGGER = Logger.getLogger("bot");
 
-    static void main() {
+    static boolean SYSTEMD_CREDENTIALS;
+
+    static void main(String[] args) {
+        if (args.length > 0 && args[0].equalsIgnoreCase("systemd-credentials")) {
+            SYSTEMD_CREDENTIALS = true;
+        }
+
         while (true) {
             try {
                 if (ClientAndAccount.initialize().map(Bot::new) instanceof Some(var bot)) bot.run();

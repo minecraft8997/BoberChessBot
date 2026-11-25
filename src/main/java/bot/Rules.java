@@ -10,12 +10,20 @@ record Rules(List<Rule> rules) {
     static Rules defaultRules(Map<String, BoardProvider> boardProviders) {
         return new Rules(List.of(
             new Rule((e,_) -> ! e.challenge().players().challengerOpt().isPresent(), "No challenger", Enums.DeclineReason.generic),
-            new Rule((e,_) -> e.challenge().gameType().rated(), "Rated", Enums.DeclineReason.casual),
+            /*new Rule((e,_) -> e.challenge().gameType().rated(), "Rated", Enums.DeclineReason.casual),*/
+            new Rule((e, _) -> checkBadSpeed(e.challenge().gameType().timeControl()), "Too fast or too slow time control", Enums.DeclineReason.timeControl),
             new Rule((e,_) -> ! boardProviders.containsKey(e.challenge().gameType().variant().key()), "Variant", Enums.DeclineReason.standard),
-            new Rule((_, games) -> games.size() > 8, "Too many games", Enums.DeclineReason.later),
+            new Rule((_, games) -> games.size() >= 4, "Too many games", Enums.DeclineReason.later),
             new Rule((e, games) -> (! (e.rematchOf() instanceof Some))
                 && games.containsKey(e.challenge().players().challengerOpt().map(p -> p.user().id()).orElse("")), "Existing game", Enums.DeclineReason.later)
             ));
+    }
+
+    static boolean checkBadSpeed(TimeControl tc) {
+        if (tc.speed() == Enums.Speed.correspondence || tc.speed() == Enums.Speed.ultraBullet) return true;
+
+        RealTime rt = (RealTime) tc;
+        return rt.initial().toMinutes() > 30L || rt.increment().toSeconds() > 60L;
     }
 
     Opt<Runnable> decliner(Event.ChallengeCreatedEvent event, Map<String, String> games, ClientAuth client, Logger LOGGER) {

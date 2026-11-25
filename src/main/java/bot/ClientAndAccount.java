@@ -33,7 +33,22 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
 
         URI lichessApi = URI.create(System.getenv("LICHESS_API") instanceof String api ? api : "https://lichess.org");
 
-        if (System.getenv("BOT_TOKEN") instanceof String token) { // scope bot:play
+        String botToken = null;
+        if (Bot.SYSTEMD_CREDENTIALS) {
+            String secretDir = System.getenv("CREDENTIALS_DIRECTORY");
+            File secret = new File(secretDir, "lichess-api-key");
+            if (secret.exists()) {
+                try (BufferedReader reader = new BufferedReader(new FileReader(secret))) {
+                    botToken = reader.readLine();
+                } catch (IOException e) {
+                    LOGGER.log(Level.WARNING, "Failed to read bot token through systemd credentials", e);
+                }
+            }
+        } else {
+            botToken = System.getenv("BOT_TOKEN");
+        }
+
+        if (botToken instanceof String token) { // scope bot:play
             var client = Client.auth(conf -> conf.api(lichessApi), token);
             var scopeReq = client.scopes();
             if (scopeReq instanceof Entries(var stream)) {
