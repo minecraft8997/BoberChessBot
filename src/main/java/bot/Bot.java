@@ -3,7 +3,7 @@ package bot;
 import module chariot;
 import module java.base;
 
-record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules rules, Map<String, BoardProvider> providers) {
+record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules rules) {
 
     static final Logger LOGGER = Logger.getLogger("bot");
 
@@ -28,11 +28,7 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
     }
 
     Bot(ClientAndAccount clientAndProfile) {
-        Map<String, BoardProvider> boardProviders = BoardProvider.providers().entrySet()
-            .stream().filter(e -> Variant.fromString(e.getKey()) instanceof Variant)
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        boardProviders.forEach((k,v) -> LOGGER.info("Provider - %s - %s".formatted(k,v.getClass().getName())));
-        this(clientAndProfile, new ConcurrentHashMap<>(), Rules.defaultRules(boardProviders), boardProviders);
+        this(clientAndProfile, new ConcurrentHashMap<>(), Rules.defaultRules());
     }
 
     void run() {
@@ -120,13 +116,8 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
     void handleGame(GameInfo game) {
         var client = clientAndAccount.client();
         var account = clientAndAccount.account();
-        var provider = providers.get(game.variant().key());
-        if (provider == null) {
-            client.bot().resign(game.gameId());
-            return;
-        }
 
-        Board initialBoard = provider.fromFEN(game.variant().key(), game.fen());
+        Board initialBoard = Board.fromFEN(game.fen());
 
         games.put(game.opponent().id(), game.gameId());
 
@@ -135,8 +126,8 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                 color == game.color() ? account.name() : game.opponent().name();
 
             Consumer<String> processMoves = moves -> {
-                System.out.println(moves);
-                System.out.println("Thinking");
+                LOGGER.info(moves);
+                LOGGER.info("Thinking");
                 Board board = initialBoard.play(moves);
 
                 if (game.color() == Enums.Color.white
