@@ -80,7 +80,7 @@ public class GameState {
         int prevDigit = (white ? 2 : 7);
         String move = cellChar + "" + prevDigit + cellChar + cellDigit;
 
-        String compliment = "Hmm... that's a good move. Guess I have to leave my beaver dam unfinished.";
+        String compliment = "Hmm... that's a good move.";
         if (!board.validMoves().contains(move)) {
             chat(compliment);
 
@@ -109,7 +109,7 @@ public class GameState {
             int difference = Math.abs(evalRate - lastScore);
             if (difference >= 450) {
                 prematurelyFinishedOpening = true;
-                chat(compliment);
+                chat(compliment + " Guess I have to leave my beaver dam unfinished.");
 
                 return null;
             }
