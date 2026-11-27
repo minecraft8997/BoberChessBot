@@ -135,7 +135,7 @@ record Bot(ClientAndAccount clientAndAccount, Map<String, GameState> games, Rule
         Board initialBoard = Board.fromFEN(game.fen());
 
         GameState gameState;
-        games.put(game.opponent().id(), (gameState = new GameState(game.gameId())));
+        games.put(game.opponent().id(), (gameState = new GameState(client, game)));
 
         try {
             Function<Enums.Color, String> nameByColor = color ->
