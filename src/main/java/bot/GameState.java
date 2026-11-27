@@ -15,7 +15,7 @@ import java.util.logging.Logger;
 
 public class GameState {
     private static final Logger LOGGER = Logger.getLogger("bot");
-    private static final int MOVE_TIME_MS = Integer.parseInt(System.getProperty("movetime", "1000"));
+    private static final int MOVE_TIME_MS = Integer.parseInt(System.getProperty("movetime", "800"));
 
     private final ClientAuth client;
     private final String gameId;
@@ -166,7 +166,7 @@ public class GameState {
 
         int elo;
         if (opponent instanceof GameInfo.Account account) {
-            elo = Math.clamp(account.rating(), 1320, 3190);
+            elo = Math.clamp((long) (account.rating() * 1.1D), 1320, 3190);
 
             chat("I will be playing at " + elo + " Elo.");
         } else if (opponent instanceof Anonymous) {
