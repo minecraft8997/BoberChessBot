@@ -15,7 +15,7 @@ import java.util.logging.Logger;
 
 public class GameState {
     private static final Logger LOGGER = Logger.getLogger("bot");
-    private static final int MOVE_TIME_MS = Integer.parseInt(System.getProperty("movetime", "800"));
+    private static final int MOVE_TIME_MS = Integer.parseInt(System.getProperty("movetime", "1000"));
 
     private final ClientAuth client;
     private final String gameId;
@@ -45,11 +45,7 @@ public class GameState {
             String beaverMove;
             if ((beaverMove = performBeaverDamOpening(board)) != null) return beaverMove;
 
-            String positionCmd = "position startpos";
-            if (!trustedHistory.isEmpty()) {
-                positionCmd += " moves " + String.join(" ", trustedHistory);
-            }
-            sfSendCommand(positionCmd);
+            sfSharePosition();
 
             Collection<String> validMoves = board.validMoves();
             if (validMoves.isEmpty()) return null;
@@ -80,13 +76,9 @@ public class GameState {
         int prevDigit = (white ? 2 : 7);
         String move = cellChar + "" + prevDigit + cellChar + cellDigit;
 
-        String compliment = "Hmm... that's a good move.";
-        if (!board.validMoves().contains(move)) {
-            chat(compliment);
+        if (!board.validMoves().contains(move)) return null;
 
-            return null;
-        }
-
+        sfSharePosition();
         sfSendCommand("go movetime " + MOVE_TIME_MS + " searchmoves " + move);
         sfWaitUntil("bestmove", true);
 
@@ -105,11 +97,12 @@ public class GameState {
 
             break;
         }
+        sfHistory.clear();
         if (evalRate != null && evalRate < lastScore) {
             int difference = Math.abs(evalRate - lastScore);
             if (difference >= 450) {
                 prematurelyFinishedOpening = true;
-                chat(compliment + " Guess I have to leave my beaver dam unfinished.");
+                chat("Hmm... that's a good move. Guess I have to leave my beaver dam unfinished.");
 
                 return null;
             }
@@ -119,6 +112,15 @@ public class GameState {
         openingMoves++;
 
         return move;
+    }
+
+    private void sfSharePosition() throws IOException {
+        String positionCmd = "position startpos";
+        if (!trustedHistory.isEmpty()) {
+            positionCmd += " moves " + String.join(" ", trustedHistory);
+        }
+
+        sfSendCommand(positionCmd);
     }
 
     private void chat(String message) {
