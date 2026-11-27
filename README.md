@@ -1,3 +1,8 @@
+# BoberChessBot
+A Lichess bot playing FM Maksim Omariev's "Beaver Dam" opening.
+
+Try it live: [@BoberChessBot](https://lichess.org/@/BoberChessBot)
+
 # charibot
 
 Application which can connect to Lichess using a Lichess BOT account, and
