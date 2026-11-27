@@ -43,7 +43,7 @@ public class GameState {
             if (!checkStockfish()) return null;
 
             String beaverMove;
-            if ((beaverMove = performBeaverDamOpening()) != null) return beaverMove;
+            if ((beaverMove = performBeaverDamOpening(board)) != null) return beaverMove;
 
             String positionCmd = "position startpos";
             if (!trustedHistory.isEmpty()) {
@@ -72,13 +72,20 @@ public class GameState {
         }
     }
 
-    private String performBeaverDamOpening() throws IOException {
+    private String performBeaverDamOpening(Board board) throws IOException {
         if (openingMoves >= 8 || prematurelyFinishedOpening) return null;
 
         char cellChar = (char) ('a' + openingMoves);
         int cellDigit = (white ? 3 : 6);
         int prevDigit = (white ? 2 : 7);
         String move = cellChar + "" + prevDigit + cellChar + cellDigit;
+
+        String compliment = "Hmm... that's a good move. Guess I have to leave my beaver dam unfinished.";
+        if (!board.validMoves().contains(move)) {
+            chat(compliment);
+
+            return null;
+        }
 
         sfSendCommand("go movetime " + MOVE_TIME_MS + " searchmoves " + move);
         sfWaitUntil("bestmove", true);
@@ -102,7 +109,7 @@ public class GameState {
             int difference = Math.abs(evalRate - lastScore);
             if (difference >= 450) {
                 prematurelyFinishedOpening = true;
-                chat("Hmm... that's a good move. Guess I have to leave my beaver dam unfinished.");
+                chat(compliment);
 
                 return null;
             }
