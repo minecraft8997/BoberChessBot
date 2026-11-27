@@ -8,16 +8,7 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
     private static Logger LOGGER = Logger.getLogger("bot");
 
     static Opt<ClientAndAccount> initialize() {
-        return initialize(Preferences.userRoot().node(System.getProperty("prefs", "charibot")));
-    }
-
-    static Opt<ClientAndAccount> initialize(String prefs) {
-        return initialize(Preferences.userRoot().node(prefs));
-    }
-
-    static Opt<ClientAndAccount> initialize(Preferences prefs) {
-        LOGGER.info(() -> "Using prefs: %s".formatted(prefs));
-        if (initializeClient(prefs) instanceof Some(var client)
+        if (initializeClient() instanceof Some(var client)
             && initializeAccount(client) instanceof Some(var account))
             return Opt.of(new ClientAndAccount(client, account));
         return Opt.empty();
@@ -29,8 +20,7 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
     /// i.e at first run the user must interactively grant access by navigating with a Web Browser
     /// to the Lichess grant page and authorizing with the Bot Account,
     /// and consecutive runs the now already stored token will be used automatically.
-    static Opt<ClientAuth> initializeClient(Preferences prefs) {
-
+    static Opt<ClientAuth> initializeClient() {
         URI lichessApi = URI.create(System.getenv("LICHESS_API") instanceof String api ? api : "https://lichess.org");
 
         String botToken = null;
@@ -53,8 +43,7 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
             var scopeReq = client.scopes();
             if (scopeReq instanceof Entries(var stream)) {
                 if (stream.anyMatch(Client.Scope.bot_play::equals)) {
-                    LOGGER.info(() -> "Storing and using provided token");
-                    client.store(prefs);
+                    LOGGER.info(() -> "Using provided token");
                     return Opt.of(client);
                 }
                 LOGGER.info("Provided token is missing bot:play scope");
@@ -62,57 +51,15 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
             } else {
                 if (scopeReq instanceof Fail(int status, _) && status == 401) {
                     LOGGER.info("Permission denied - token considered canceled");
-                    client.clearAuth(prefs);
                 } else {
                     LOGGER.info("Failed to lookup scopes: %s".formatted(scopeReq));
                     return Opt.empty();
                 }
             }
         }
+        LOGGER.severe("Missing BOT_TOKEN");
 
-        var client = Client.load(prefs);
-
-        if (client instanceof ClientAuth auth) {
-            var scopeReq = auth.scopes();
-            if (scopeReq instanceof Entries(var stream)) {
-                if (stream.anyMatch(Client.Scope.bot_play::equals)) {
-                    LOGGER.info(() -> "Using stored token");
-                    return Opt.of(auth);
-                }
-                // "fallthrough", user has revoked the token since we last used it.
-            } else {
-                if (scopeReq instanceof Fail(int status, _) && status == 401) {
-                    LOGGER.info("Permission denied - token considered canceled");
-                    auth.clearAuth(prefs);
-                } else {
-                    LOGGER.info("Failed to lookup scopes: %s".formatted(scopeReq));
-                    return Opt.empty();
-                }
-            }
-        }
-
-        var authResult = Client.auth(
-            conf -> conf.api(lichessApi),
-            uri -> System.out.println("""
-
-                Visit the following URL and choose to grant access to this application or not:
-
-                %s
-
-                Tip, open URL in "incognito"/private browser to log in with bot account
-                to avoid logging out with normal account.
-                """.formatted(uri)),
-            pkce -> pkce.scope(Client.Scope.bot_play));
-
-        if (! (authResult instanceof Some(var auth))) {
-            LOGGER.warning(() -> "OAuth PKCE flow failed: %s".formatted(authResult));
-            return Opt.empty();
-        }
-
-        LOGGER.info(() -> "OAuth PKCE flow succeeded - storing and using token");
-        auth.store(prefs);
-
-        return Opt.of(auth);
+        return Opt.empty();
     }
 
     static Opt<UserAuth> initializeAccount(ClientAuth client) {

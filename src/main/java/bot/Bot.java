@@ -3,16 +3,32 @@ package bot;
 import module chariot;
 import module java.base;
 
-record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules rules) {
+record Bot(ClientAndAccount clientAndAccount, Map<String, GameState> games, Rules rules) {
 
     static final Logger LOGGER = Logger.getLogger("bot");
 
     static boolean SYSTEMD_CREDENTIALS;
+    static String STOCKFISH_PATH;
 
     static void main(String[] args) {
-        if (args.length > 0 && args[0].equalsIgnoreCase("systemd-credentials")) {
-            SYSTEMD_CREDENTIALS = true;
+        if (args.length < 2) {
+            System.err.println("Usage on Windows:");
+            System.err.println("SET BOT_TOKEN=<your Lichess token>");
+            System.err.println("java -jar bober-chess-bot-0.0.1-SNAPSHOT.jar env <path to Stockfish .exe>");
+            System.err.println();
+            System.err.println("Usage on Linux:");
+            System.err.println("BOT_TOKEN=<your Lichess token> java -jar bober-chess-bot-0.0.1-SNAPSHOT.jar env " +
+                    "<path to Stockfish executable>");
+            System.err.println("Additionally, if you spin up the bot as a systemd service, you can encrypt your " +
+                    "key and use the LoadCredentialEncrypted option in your service file. If that's the case, use:");
+            System.err.println("java -jar bober-chess-bot-0.0.1-SNAPSHOT.jar systemd-credentials <path to Stockfish>");
+            System.err.println("in your startup script");
+
+            System.exit(-1);
         }
+        SYSTEMD_CREDENTIALS = args[0].equalsIgnoreCase("systemd-credentials");
+        STOCKFISH_PATH = args[1];
+        LOGGER.info("Stockfish path: " + STOCKFISH_PATH);
 
         while (true) {
             try {
@@ -52,11 +68,10 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
         }
 
         // Listen for game start events and incoming challenges
-        try (var scope = StructuredTaskScope.open();
-             var stream = events.stream();) {
+        try (var stream = events.stream();) {
             stream.forEach(event -> { switch(event) {
-                case Event.ChallengeCreatedEvent created -> scope.fork(() -> handleChallenge(created));
-                case Event.GameStartEvent(var game, _)   -> scope.fork(() -> handleGame(game));
+                case Event.ChallengeCreatedEvent created -> Thread.ofVirtual().start(() -> handleChallenge(created));
+                case Event.GameStartEvent(var game, _)   -> Thread.ofVirtual().start(() -> handleGame(game));
                 case Event.GameStopEvent _,
                      Event.GameStartEvent _,
                      Event.ChallengeCanceledEvent _,
@@ -119,27 +134,24 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
 
         Board initialBoard = Board.fromFEN(game.fen());
 
-        games.put(game.opponent().id(), game.gameId());
+        GameState gameState;
+        games.put(game.opponent().id(), (gameState = new GameState(game.gameId())));
 
         try {
             Function<Enums.Color, String> nameByColor = color ->
                 color == game.color() ? account.name() : game.opponent().name();
 
             Consumer<String> processMoves = moves -> {
-                LOGGER.info(moves);
-                LOGGER.info("Thinking");
                 Board board = initialBoard.play(moves);
 
                 if (game.color() == Enums.Color.white
                         ? board.sideToMove() == Side.black
                         : board.sideToMove() == Side.white) return;
 
-                Collection<String> validMoves = board.validMoves();
-                Ack result = validMoves.stream()
-                    .skip(new Random().nextInt(validMoves.size()))
-                    .findFirst()
-                    .map(move -> client.bot().move(game.gameId(), move))
-                    .orElse(Ack.fail("no move"));
+                Ack result;
+                String move = gameState.makeMove(board);
+                if (move != null) result = client.bot().move(game.gameId(), move);
+                else              result = Ack.fail("no move");
 
                 if (result instanceof Fail<?> fail) {
                     LOGGER.warning(() -> "Play failed: %s - resigning".formatted(fail));
@@ -182,10 +194,21 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                                     nameByColor.apply(Enums.Color.white) + (board.sideToMove() == Side.white ? "*" : ""),
                                     nameByColor.apply(Enums.Color.black) + (board.sideToMove() == Side.black ? "*" : ""));
 
+                            if (!board.validMoves().contains(lastMove)) {
+                                LOGGER.info("Invalid move " + lastMove);
+                                break;
+                            }
+                            String oldFen = board.toFEN();
                             board = board.play(lastMove);
+                            String newFen = board.toFEN();
+                            if (newFen.equals(oldFen)) {
+                                LOGGER.info("Move " + lastMove + " is likely invalid since it didn't affect FEN");
+                                break;
+                            }
+                            gameState.addTrustedMove(lastMove);
 
                             String infoAfterMove = "%s %s".formatted(
-                                    board.toFEN(),
+                                    newFen,
                                     state.status());
 
                             LOGGER.info("%s\n%s".formatted(infoBeforeMove, infoAfterMove));
@@ -201,7 +224,7 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
 
                         if (state.drawOffer() instanceof Some(var color)
                             && color != game.color()) {
-                            client.bot().handleDrawOffer(game.gameId(), true);
+                            client.bot().handleDrawOffer(game.gameId(), false);
                             break;
                         }
 
@@ -209,7 +232,7 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                     }
 
                     case GameStateEvent.OpponentGone(_, GameStateEvent.Yes())
-                        -> LOGGER.info("Claim Draw: %s".formatted(client.bot().claimDraw(game.gameId())));
+                        -> LOGGER.info("Claim Victory: %s".formatted(client.bot().claimVictory(game.gameId())));
                     case GameStateEvent.OpponentGone gone
                         -> LOGGER.info(() -> "Gone: %s".formatted(gone));
                     case GameStateEvent.Chat(var name, var text, var room)
@@ -218,7 +241,8 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
             }
             LOGGER.fine(() -> "GameEvent handler for %s finished".formatted(game.gameId()));
         } finally {
-            games.remove(game.opponent().id(), game.gameId());
+            gameState.dispose();
+            games.remove(game.opponent().id());
         }
 
         // Check if we are to challenge someone...

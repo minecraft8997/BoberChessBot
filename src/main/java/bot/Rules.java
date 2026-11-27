@@ -5,7 +5,7 @@ import module java.base;
 
 record Rules(List<Rule> rules) {
 
-    record Rule(BiPredicate<Event.ChallengeCreatedEvent, Map<String, String>> cond, String msg, Enums.DeclineReason reason) {}
+    record Rule(BiPredicate<Event.ChallengeCreatedEvent, Map<String, GameState>> cond, String msg, Enums.DeclineReason reason) {}
 
     static Rules defaultRules() {
         return new Rules(List.of(
@@ -29,7 +29,7 @@ record Rules(List<Rule> rules) {
         return rt.initial().toMinutes() > 30L || rt.increment().toSeconds() > 60L;
     }
 
-    Opt<Runnable> decliner(Event.ChallengeCreatedEvent event, Map<String, String> games, ClientAuth client, Logger LOGGER) {
+    Opt<Runnable> decliner(Event.ChallengeCreatedEvent event, Map<String, GameState> games, ClientAuth client, Logger LOGGER) {
         return rules().stream()
             .filter(r -> r.cond().test(event, games))
             .map(rule -> Opt.<Runnable>of(() -> {
